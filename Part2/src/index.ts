@@ -2,6 +2,7 @@ import assert from 'assert';
 import * as crypto from 'crypto';
 import * as ethers from 'ethers';
 import { buildBabyjub, buildMimc7, buildEddsa } from 'circomlibjs';
+import { bigintToBuf, bufToBigint } from 'bigint-conversion';
 
 const createBlakeHash = require('blake-hash');
 
@@ -239,6 +240,16 @@ const encrypt = async (
 ): Promise<Ciphertext> => {
   const mimc7 = await buildMimc7();
   // [assignment] generate the IV, use Mimc7 to hash the shared key with the IV, then encrypt the plain text
+  const iv = bufToBigint(mimc7.multiHash(plaintext, BigInt(0)));
+  const data = plaintext.map((e: bigint, i: number): bigint => {
+    return e + bufToBigint(mimc7.hash(sharedKey, iv + BigInt(i)));
+  });
+
+  const ciphertext: Ciphertext = {
+    iv: iv,
+    data: data,
+  };
+  return ciphertext;
 };
 
 /*
@@ -250,6 +261,16 @@ const decrypt = async (
   sharedKey: EcdhSharedKey,
 ): Promise<Plaintext> => {
   // [assignment] use Mimc7 to hash the shared key with the IV, then descrypt the ciphertext
+  const mimc7 = await buildMimc7();
+  const plaintext: Plaintext = ciphertext.data.map(
+    (e: bigint, i: number): bigint => {
+      return (
+        BigInt(e) -
+        bufToBigint(mimc7.hash(sharedKey, ciphertext.iv + BigInt(i)))
+      );
+    },
+  );
+  return plaintext;
 };
 
 export {
